@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' blob: data:; script-src 'self' blob: 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:* file:; object-src 'none'; base-uri 'none'; frame-src 'self' skyos: http://127.0.0.1:* http://localhost:*;">
+  <title>SkyOS ECHO — Electron</title>
+  <link rel="stylesheet" href="../desktop.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="brand-mark">S</span><b>SkyOS</b></div>
+  <button class="bar-title" id="activities-button">Activities</button>
+  <div id="boot-status">Connecting to host services…</div>
+  <div id="status-line">HOST ELECTRON · BRIDGE STATUS LOADING</div>
+  <time id="clock"></time>
+  <button id="power-button" aria-label="System menu">⏻</button>
+</header>
+<main id="desktop-field" class="desktop-field">
+  <div class="desktop-caption"><small>ITERON · SKYLUM · ECHO</small><h1>Local machine.<br>Sealed state.</h1><p>Electron owns the local doors; ECHO sees only explicit host capabilities.</p></div>
+  <div id="desktop-shortcuts" class="desktop-shortcuts"></div>
+  <section id="window-layer" class="window-layer" aria-label="Application windows"></section>
+  <nav id="dock" class="dock" aria-label="Application dock"><button id="dock-launcher" aria-label="Show applications">▦</button><div id="dock-apps"></div></nav>
+  <section id="launcher" class="launcher" hidden><div class="launcher-head"><h2>Applications</h2><button id="launcher-close" aria-label="Close launcher">×</button></div><input id="launcher-search" placeholder="Search applications" aria-label="Search applications"><div id="app-grid" class="app-grid"></div></section>
+  <section id="power-menu" class="system-menu" hidden>
+    <button id="save-opfs">Save local state volume</button><button id="download-volume">Save volume…</button>
+    <button id="reemit-iteron">Re-emit ITERON</button><button id="reemit-skylum">Re-emit SKYLUM</button>
+    <button id="reemit-desktop">Re-emit desktop.html</button><button id="about-system">About SkyOS</button>
+  </section>
+  <section id="context-menu" class="system-menu" hidden><button id="context-terminal">New Terminal</button><button id="context-inspector">Inspect Volume</button><button id="context-save">Save State</button></section>
+  <section id="app-modal" class="launcher" hidden aria-modal="true" role="dialog"><div class="launcher-head"><h2 id="app-modal-title">Application</h2><button id="app-modal-close" aria-label="Close application">×</button></div><div id="app-modal-body"></div></section>
+</main>
+<div id="toast" class="toast" hidden role="status"></div>
+<script type="module" src="./renderer.js"></script>
+</body>
+</html>

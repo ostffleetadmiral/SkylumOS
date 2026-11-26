@@ -1,0 +1,16 @@
+{
+  "name": "skyos-echo-electron",
+  "version": "0.1.0",
+  "private": true,
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "host:status": "bun ../../host/cli.js --mode status",
+    "host:shell": "bun ../../host/cli.js --mode shell",
+    "host:serve": "bun ../../host/cli.js --mode serve",
+    "test:host": "bun ../../tests/host.test.mjs"
+  },
+  "devDependencies": {
+    "electron": "35.7.5"
+  }
+}

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>SkyOS ECHO — Quine Desktop</title>
+<link rel="stylesheet" href="./desktop.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="brand-mark">S</span><b>SkyOS</b></div>
+  <button class="bar-title" id="activities-button">Activities</button>
+  <div id="boot-status">Booting ITERON → SKYLUM → ECHO…</div>
+  <div id="status-line">CLAIMS — · PEERS — · DOORS — · OPFS — · INFER —</div>
+  <time id="clock"></time>
+  <button id="power-button" aria-label="System menu">⏻</button>
+</header>
+<main id="desktop-field" class="desktop-field">
+  <div class="desktop-caption"><small>THREE-LAYER QUINE OS</small><h1>Make the<br>machine legible.</h1>
+    <p>Claims are memory. Windows are session. The artifact is the computer.</p></div>
+  <div id="desktop-shortcuts" class="desktop-shortcuts"></div>
+  <section id="window-layer" class="window-layer" aria-label="Application windows"></section>
+  <nav id="dock" class="dock" aria-label="Application dock">
+    <button id="dock-launcher" aria-label="Show applications" title="Applications">▦</button>
+    <div id="dock-apps"></div>
+  </nav>
+  <section id="launcher" class="launcher" hidden>
+    <div class="launcher-head"><h2>Applications</h2><button id="launcher-close" aria-label="Close">×</button></div>
+    <input id="launcher-search" placeholder="Search applications" aria-label="Search applications">
+    <div id="app-grid" class="app-grid"></div>
+  </section>
+  <section id="power-menu" class="system-menu" hidden>
+    <button id="save-opfs">Save session to OPFS</button>
+    <button id="download-volume">Download state.skcs</button>
+    <button id="reemit-iteron">Re-emit ITERON</button>
+    <button id="reemit-skylum">Re-emit SKYLUM</button>
+    <button id="reemit-desktop">Re-emit desktop.html</button>
+    <button id="about-system">About SkyOS</button>
+  </section>
+  <section id="context-menu" class="system-menu" hidden>
+    <button id="context-terminal">New Terminal</button>
+    <button id="context-inspector">Inspect Volume</button>
+    <button id="context-save">Save State</button>
+  </section>
+  <section id="app-modal" class="launcher" hidden aria-modal="true" role="dialog">
+    <div class="launcher-head"><h2 id="app-modal-title">Application</h2><button id="app-modal-close" aria-label="Close application">×</button></div>
+    <div id="app-modal-body"></div>
+  </section>
+</main>
+<div id="toast" class="toast" hidden role="status"></div>
+<script type="module" src="./main.js"></script>
+</body>
+</html>

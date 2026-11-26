@@ -1,0 +1,10 @@
+{
+  "name": "skyos",
+  "private": true,
+  "description": "ITERON/SKYLUM/ECHO three-layer browser-native OS",
+  "scripts": {
+    "test": "bun tests/iteron.test.mjs && bun tests/skylum.test.mjs && bun tests/echo.test.mjs && bun tests/host.test.mjs && bun tests/services.test.mjs && bun tests/fabric.test.mjs && bun tests/electron.test.mjs",
+    "test:skyos": "bun test tests/iteron.test.mjs tests/skylum.test.mjs tests/echo.test.mjs tests/host.test.mjs tests/services.test.mjs tests/fabric.test.mjs tests/electron.test.mjs",
+    "coverage": "tools/coverage.sh"
+  }
+}

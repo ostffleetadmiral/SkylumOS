@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+node_modules/
+.skyos/
+service-logs/
+*.log
+.DS_Store
