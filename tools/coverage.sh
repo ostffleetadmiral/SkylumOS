@@ -2,7 +2,7 @@
 # coverage.sh — honest measurement gate for SkyOS.
 #
 # What is measured vs. what is not is stated plainly:
-#   - bun suites (iteron/skylum/echo/host/services/fabric/electron) are
+#   - bun suites (iteron/skylum/echo/host/services/shell/fabric/electron) are
 #     *script-style* harnesses (own ok()/pass counters), not bun:test cases. Bun 1.4.5's
 #     --coverage emits no line coverage for this runner style, so JS line
 #     coverage is reported as ASSERTION COUNTS, not a fabricated percent.
@@ -39,7 +39,7 @@ run_suite() {
 }
 
 echo "== bun suites (assertion counts; line coverage n/a — script harnesses) =="
-for t in iteron skylum echo host services fabric electron; do
+for t in iteron skylum echo host services shell fabric electron; do
   [ -f "$SKYOS/tests/$t.test.mjs" ] && run_suite "$t" "$SKYOS/tests/$t.test.mjs"
 done
 printf '%-10s %4d ok   %d fail\n' "TOTAL" "$pass_total" "$fail_total"

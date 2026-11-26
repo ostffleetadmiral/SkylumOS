@@ -258,8 +258,12 @@ from the qsc-v1 desktop donor. `echo/wm.js` owns bounded window state
 (eight windows maximum, 280×180 minimum, 4096×4096 maximum), clamped geometry,
 focus/z order, maximize/restore, and session snapshots. Pre-maximize geometry
 is clamped to the *current* viewport when restored or when the viewport changes.
-The terminal and app mounts call through `ctx.os` to SKYLUM/ITERON services;
-there is no host shell or direct core mutation path.
+The terminal mounts in two honest layers: when the host exposes `term*`
+capabilities (Electron preload or Node bridge) the Terminal app runs a real
+xterm.js frontend bound to a tmux-owned PTY login shell via
+`host/shell-node.mjs` — genuine commands, job control, and ANSI stream.
+Otherwise it falls back to the SkyOS console, whose commands route through
+`ctx.os` to SKYLUM/ITERON services. There is no direct core mutation path.
 
 `__desktop.json` is a `manifest`-kind member containing the last explicitly
 saved window snapshot. Dragging, clocks, and polling do not persist state;
@@ -308,9 +312,9 @@ ITERON's state/member rules.
 | Entry point | Role | Security/behavior contract |
 |---|---|---|
 | `host/cli.js --mode status` | Headless inspection | Loads shared WASM and seed volume and emits a status snapshot. |
-| `host/cli.js --mode shell` | Headless line protocol | Accepts JSON-lines from stdin and only the fixed `HOST_COMMANDS` service allowlist. |
-| `host/cli.js --mode serve` | Optional browser bridge | Binds loopback only, requires a random bearer token, checks browser origins, caps request bodies, and supports clean shutdown. The bridge is an explicit local service, not started by the normal headless status mode. |
-| `echo/electron/` | Desktop and local host | Renderer is sandboxed, context-isolated, and has no Node integration. A frozen preload surface maps named APIs to fixed IPC channels; main checks the sender webContents and exact `skyos://app/...` frame URL. Volume IPC is a base64 byte-shuttle — the renderer's own Skylum serializes state and main only moves bytes, so the desktop runtime and the bridge/host runtime never diverge on disk. Filesystem ops take validated volume names or dialog-selected paths, never renderer paths. Main also supervises the external-app runtimes from `host/services.mjs`: probes each manifest port, spawns launchable missing services (logs under `userData/service-logs`), exposes `skyos:services:status`/`skyos:services:ensure`, reaps only its own children on quit, and honors `SKYOS_AUTOSTART`/`SKYOS_*_DIR` (contract in `docs/PORTS.md`). The Fabric app reaches the cluster head through `skyos:fabric:request`: main proxies `/v1/*` GET/POST to `SKYOS_FABRIC_URL` (default `http://127.0.0.1:8977`) and attaches `SKYOS_FABRIC_TOKEN` itself, so the renderer never holds the head credential and no CSP exception is needed (`docs/FABRIC.md`). |
+| `host/cli.js --mode shell` | Headless line protocol | Accepts JSON-lines from stdin and only the fixed `HOST_COMMANDS` service allowlist, which now includes `term.spawn/write/read/resize/kill/list` backed by `host/shell-node.mjs` tmux PTYs (real login shells, `tmux` required). |
+| `host/cli.js --mode serve` | Optional browser bridge | Binds loopback only, requires a random bearer token, checks browser origins, caps request bodies, and supports clean shutdown. The bridge is an explicit local service, not started by the normal headless status mode. `serve` and `shell` modes attach `host/shell-node.mjs` so `term.*` commands yield real PTYs. |
+| `echo/electron/` | Desktop and local host | Renderer is sandboxed, context-isolated, and has no Node integration. A frozen preload surface maps named APIs to fixed IPC channels; main checks the sender webContents and exact `skyos://app/...` frame URL. Volume IPC is a base64 byte-shuttle — the renderer's own Skylum serializes state and main only moves bytes, so the desktop runtime and the bridge/host runtime never diverge on disk. Filesystem ops take validated volume names or dialog-selected paths, never renderer paths. Main also supervises the external-app runtimes from `host/services.mjs`: probes each manifest port, spawns launchable missing services (logs under `userData/service-logs`), exposes `skyos:services:status`/`skyos:services:ensure`, reaps only its own children on quit, and honors `SKYOS_AUTOSTART`/`SKYOS_*_DIR` (contract in `docs/PORTS.md`). The Fabric app reaches the cluster head through `skyos:fabric:request`: main proxies `/v1/*` GET/POST to `SKYOS_FABRIC_URL` (default `http://127.0.0.1:8977`) and attaches `SKYOS_FABRIC_TOKEN` itself, so the renderer never holds the head credential and no CSP exception is needed (`docs/FABRIC.md`). `skyos:term:*` channels expose `host/shell-node.mjs` tmux PTY sessions (spawn/write/read/resize/kill/list) so the Terminal app's Shell view is a real login shell; xterm.js + FitAddon are vendored under `echo/vendor/xterm/` and fetched lazily. |
 
 Node/Electron volumes use a filesystem persistence adapter with validated
 single-component volume names and atomic temp-file replacement. Electron's

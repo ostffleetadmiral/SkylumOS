@@ -6,6 +6,8 @@ const IPC_CHANNELS = Object.freeze([
   "skyos:artifact:export", "skyos:bridge:enable", "skyos:bridge:status",
   "skyos:hw:probe", "skyos:optical:sources",
   "skyos:services:status", "skyos:services:ensure",
+  "skyos:term:spawn", "skyos:term:write", "skyos:term:read",
+  "skyos:term:resize", "skyos:term:kill", "skyos:term:list",
   "skyos:fabric:request",
 ]);
 

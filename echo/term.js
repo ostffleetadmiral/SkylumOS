@@ -14,7 +14,7 @@ export function createTerminalDispatcher(os) {
     switch (command.toLowerCase()) {
       case "": return "";
       case "help": return "help about status claims cat alloc free stage commit seal save load volumes seats doors infer mesh persist reemit echo clear\n  doors list|send <id> <text>|recv <id> [maxBytes]";
-      case "about": return "SkyOS ECHO terminal — commands route through SKYLUM/ITERON services; no host shell.";
+      case "about": return "SkyOS console — commands route through SKYLUM/ITERON services. For a POSIX shell use the Shell view (host PTY) or `cli.js --mode shell`.";
       case "status": return JSON.stringify(await os.skylum.status(), (_, v) => typeof v === "bigint" ? v.toString() : v, 2);
       case "claims": return JSON.stringify(os.skylum.memory.list(), null, 2);
       case "cat": {
@@ -134,12 +134,61 @@ export function createTerminalDispatcher(os) {
   };
 }
 
-export function mountTerminal(root, ctx) {
+// Real interactive shell: xterm.js frontend bound to a host-owned tmux PTY
+// (host/shell-node.mjs). The vendored engine loads lazily; when the host
+// cannot provide a PTY the app falls back to the SkyOS console honestly.
+const XTERM_DIR = "vendor/xterm/";
+let xtermLoad = null;
+
+function loadScript(doc, src) {
+  return new Promise((resolve, reject) => {
+    const s = doc.createElement("script");
+    s.src = src; s.onload = resolve;
+    s.onerror = () => reject(new Error(`xterm_load_failed:${src}`));
+    doc.head.append(s);
+  });
+}
+
+function ensureXterm(doc, base) {
+  xtermLoad ??= (async () => {
+    if (!globalThis.Terminal || !globalThis.FitAddon) {
+      await loadScript(doc, base + "xterm.js");
+      await loadScript(doc, base + "addon-fit.js");
+    }
+    if (typeof globalThis.Terminal !== "function" ||
+        typeof globalThis.FitAddon !== "function")
+      throw new Error("xterm_load_failed");
+    if (!doc.getElementById("skyos-xterm-css")) {
+      const css = await (await fetch(base + "xterm.css")).text();
+      const style = doc.createElement("style");
+      style.id = "skyos-xterm-css"; style.textContent = css;
+      doc.head.append(style);
+    }
+    return { Terminal: globalThis.Terminal, FitAddon: globalThis.FitAddon };
+  })().catch(e => { xtermLoad = null; throw e; });
+  return xtermLoad;
+}
+
+function b64ToString(b64) {
+  const bin = atob(b64);
+  let out = "";
+  for (let i = 0; i < bin.length; i += 8192)
+    out += String.fromCharCode(...bin.slice(i, i + 8192).split("").map(c => c.charCodeAt(0)));
+  return out;
+}
+
+const SHELL_METHODS = ["termSpawn", "termWrite", "termRead", "termResize", "termKill"];
+
+function hostCanShell(host) {
+  return !!host && SHELL_METHODS.every(m => typeof host[m] === "function");
+}
+
+function mountConsole(root, ctx) {
   const doc = root.ownerDocument;
   const output = doc.createElement("div"); output.className = "terminal-output";
   const form = doc.createElement("form"); form.className = "terminal-form";
   const prompt = doc.createElement("span"); prompt.textContent = "skyos $";
-  const input = doc.createElement("input"); input.autocomplete = "off"; input.setAttribute("aria-label", "Terminal command");
+  const input = doc.createElement("input"); input.autocomplete = "off"; input.setAttribute("aria-label", "SkyOS console command");
   form.append(prompt, input); root.append(output, form);
   const run = createTerminalDispatcher(ctx.os);
   const history = []; let cursor = 0; let generation = 0;
@@ -168,4 +217,116 @@ export function mountTerminal(root, ctx) {
   });
   input.focus();
   return () => { generation++; };
+}
+
+async function mountShellPane(pane, ctx, host) {
+  const doc = pane.ownerDocument;
+  const status = doc.createElement("div");
+  status.className = "term-status"; status.textContent = "loading terminal engine…";
+  pane.append(status);
+  const base = host.mode === "electron" ? "../vendor/xterm/" : "vendor/xterm/";
+  const { Terminal, FitAddon } = await ensureXterm(doc, base);
+  status.remove();
+  const holder = doc.createElement("div");
+  holder.className = "term-xterm";
+  pane.append(holder);
+  const term = new Terminal({
+    cursorBlink: true, fontSize: 13, scrollback: 5000,
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+    theme: { background: "#0d1117", foreground: "#e6edf3",
+      cursor: "#58a6ff", selectionBackground: "#264f78" },
+  });
+  const fit = new FitAddon();
+  term.loadAddon(fit);
+  term.open(holder);
+  fit.fit();
+  const spawned = await host.termSpawn({ cols: term.cols, rows: term.rows });
+  const id = spawned.id;
+  let dead = false, reading = false, disposed = false;
+  term.onData(data => { if (!dead) host.termWrite({ id, data }).catch(() => {}); });
+  const pushSize = () => {
+    if (!dead) host.termResize({ id, cols: term.cols, rows: term.rows }).catch(() => {});
+  };
+  const ro = new ResizeObserver(() => {
+    if (disposed || dead || !holder.clientWidth) return;
+    try { fit.fit(); pushSize(); } catch {}
+  });
+  ro.observe(holder);
+  const poll = setInterval(async () => {
+    if (reading || dead || disposed) return;
+    reading = true;
+    try {
+      const r = await host.termRead({ id, maxBytes: 256 * 1024 });
+      if (disposed) return;
+      if (r.data) term.write(b64ToString(r.data));
+      if (!r.alive) {
+        dead = true;
+        term.write("\r\n\x1b[90m[shell exited — close and reopen Terminal to start a new session]\x1b[0m\r\n");
+      }
+    } catch { /* transient read error — next tick retries */ }
+    finally { reading = false; }
+  }, 60);
+  const note = doc.createElement("div");
+  note.className = "term-status";
+  note.textContent = `host shell · ${host.mode ?? "node"} · ${id}`;
+  pane.append(note);
+  return () => {
+    disposed = true;
+    clearInterval(poll);
+    ro.disconnect();
+    term.dispose();
+    if (!dead) host.termKill({ id }).catch(() => {});
+  };
+}
+
+export function mountTerminal(root, ctx) {
+  const doc = root.ownerDocument;
+  const host = ctx?.os?.host;
+  if (!hostCanShell(host)) return mountConsole(root, ctx);
+
+  const wrap = doc.createElement("div"); wrap.className = "term-shell-wrap";
+  const bar = doc.createElement("div"); bar.className = "term-shell-bar";
+  const makeBtn = label => {
+    const b = doc.createElement("button");
+    b.type = "button"; b.className = "term-mode"; b.textContent = label;
+    return b;
+  };
+  const shellBtn = makeBtn("Shell");
+  const consoleBtn = makeBtn("SkyOS");
+  bar.append(shellBtn, consoleBtn);
+  const shellPane = doc.createElement("div"); shellPane.className = "term-pane";
+  const consolePane = doc.createElement("div"); consolePane.className = "term-pane";
+  consolePane.hidden = true;
+  wrap.append(bar, shellPane, consolePane);
+  root.append(wrap);
+
+  let cleanups = [];
+  let shellCleanup = null, consoleCleanup = null, shellReady = null, mode = "shell";
+  const setMode = next => {
+    if (mode === next || !ctx.isCurrent()) return;
+    mode = next;
+    shellBtn.classList.toggle("active", mode === "shell");
+    consoleBtn.classList.toggle("active", mode === "console");
+    shellPane.hidden = mode !== "shell";
+    consolePane.hidden = mode !== "console";
+    if (mode === "console" && !consoleCleanup)
+      consoleCleanup = mountConsole(consolePane, ctx);
+    if (mode === "shell") {
+      shellReady ??= mountShellPane(shellPane, ctx, host)
+        .then(c => { shellCleanup = c; }).catch(e => {
+          const d = doc.createElement("div");
+          d.className = "term-status error";
+          d.textContent = `host shell unavailable: ${e.message}`;
+          shellPane.append(d);
+        });
+    }
+  };
+  shellBtn.addEventListener("click", () => setMode("shell"));
+  consoleBtn.addEventListener("click", () => setMode("console"));
+  setMode("shell");
+  return () => {
+    for (const c of cleanups.splice(0)) c();
+    shellCleanup?.(); consoleCleanup?.();
+    shellReady = null;
+  };
 }

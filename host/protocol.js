@@ -6,6 +6,7 @@ export const HOST_COMMANDS = Object.freeze([
   "status", "claims.list", "claims.read", "volumes.list", "volumes.load",
   "volumes.save", "volumes.delete", "infer.complete", "doors.send", "doors.recv",
   "hw.probe", "quine.reemit",
+  "term.spawn", "term.write", "term.read", "term.resize", "term.kill", "term.list",
 ]);
 export const MAX_REQUEST_BYTES = 1 << 20;
 
@@ -40,10 +41,66 @@ export function createHostProtocol(runtime) {
               : validateLimit(args.maxBytes, "door_recv_limit", 1 << 20));
         case "hw.probe": return api.hwProbe();
         case "quine.reemit": return api.reemit();
+        case "term.spawn": return termService(runtime).spawn(termSpawnArgs(args));
+        case "term.write": return termService(runtime).write(termId(args), termData(args));
+        case "term.read": return termService(runtime).read(termId(args),
+          { maxBytes: args.maxBytes === undefined ? undefined : validateLimit(args.maxBytes, "term_read_limit", 1 << 20) });
+        case "term.resize": return termService(runtime).resize(termId(args), termSize(args));
+        case "term.kill": return termService(runtime).kill(termId(args));
+        case "term.list": return termService(runtime).list();
         default: throw new Error("host_command_denied");
       }
     },
   });
+}
+
+function termService(runtime) {
+  if (!runtime.term || typeof runtime.term.spawn !== "function")
+    throw new Error("term_service_unavailable");
+  return runtime.term;
+}
+
+function termId(args) {
+  if (typeof args.id !== "string" || args.id.length === 0 || args.id.length > 128)
+    throw new Error("host_args_invalid");
+  return args.id;
+}
+
+function termData(args) {
+  if (typeof args.data !== "string" || args.data.length === 0)
+    throw new Error("host_args_invalid");
+  return args.data;
+}
+
+function termSpawnArgs(args) {
+  const out = {};
+  if (args.cols !== undefined) {
+    if (!Number.isInteger(args.cols)) throw new Error("host_args_invalid");
+    out.cols = args.cols;
+  }
+  if (args.rows !== undefined) {
+    if (!Number.isInteger(args.rows)) throw new Error("host_args_invalid");
+    out.rows = args.rows;
+  }
+  if (args.cwd !== undefined) {
+    if (typeof args.cwd !== "string" || args.cwd.length > 4096)
+      throw new Error("host_args_invalid");
+    out.cwd = args.cwd;
+  }
+  return out;
+}
+
+function termSize(args) {
+  const out = {};
+  if (args.cols !== undefined) {
+    if (!Number.isInteger(args.cols)) throw new Error("host_args_invalid");
+    out.cols = args.cols;
+  }
+  if (args.rows !== undefined) {
+    if (!Number.isInteger(args.rows)) throw new Error("host_args_invalid");
+    out.rows = args.rows;
+  }
+  return out;
 }
 
 export function authorizeToken(expected, actual) {

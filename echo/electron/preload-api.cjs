@@ -19,6 +19,12 @@ const CHANNELS = Object.freeze({
   opticalSources: "skyos:optical:sources",
   servicesStatus: "skyos:services:status",
   ensureServices: "skyos:services:ensure",
+  termSpawn: "skyos:term:spawn",
+  termWrite: "skyos:term:write",
+  termRead: "skyos:term:read",
+  termResize: "skyos:term:resize",
+  termKill: "skyos:term:kill",
+  termList: "skyos:term:list",
   fabricRequest: "skyos:fabric:request",
 });
 

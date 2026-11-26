@@ -9,6 +9,7 @@ import { createNodePersistence } from "./persist-node.js";
 import { nodeHostDoors } from "./doors-node.js";
 import { createHostProtocol } from "./protocol.js";
 import { loadRuntime } from "./runtime.js";
+import { createShellService } from "./shell-node.mjs";
 
 function parseArgs(argv) {
   const options = { mode: "status", state: null, wasm: null, data: resolve(homedir(), ".skyos"),
@@ -62,6 +63,10 @@ export async function runCli(argv = process.argv.slice(2), io = { stdin, stdout 
   const runtime = await loadRuntime({ wasmPath: options.wasm ?? undefined,
     statePath: options.state ?? undefined, persist,
     doors: { extra: nodeHostDoors() } });
+  // Interactive shell sessions ride the same host protocol as every other
+  // capability — real tmux PTYs for serve and shell modes.
+  if (options.mode === "serve" || options.mode === "shell")
+    runtime.term = createShellService({ root: resolve(options.data, "terms") });
   if (options.mode === "status") {
     io.stdout.write(`${JSON.stringify(await createHostProtocol(runtime).dispatch("status"))}\\n`);
     return 0;
@@ -71,7 +76,7 @@ export async function runCli(argv = process.argv.slice(2), io = { stdin, stdout 
       allowedOrigins: options.allowedOrigins });
     io.stdout.write(`${JSON.stringify({ mode: "bridge", host: bridge.host, port: bridge.port,
       url: bridge.url, token: bridge.token })}\\n`);
-    const shutdown = async () => { await bridge.close(); };
+    const shutdown = async () => { await bridge.close(); await runtime.term?.close(); };
     process.once("SIGINT", shutdown);
     process.once("SIGTERM", shutdown);
     return bridge;
@@ -91,6 +96,7 @@ export async function runCli(argv = process.argv.slice(2), io = { stdin, stdout 
     }
   } finally {
     rl.close();
+    await runtime.term?.close();
   }
   return 0;
 }

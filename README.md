@@ -18,8 +18,8 @@ echo/     desktop shell — window manager, terminal, claims,
           embed windows (God's Eye View, Space Agent — ports in
           docs/PORTS.md), self-contained desktop quine
 host/     shared Node runtime, headless CLI, opt-in loopback bridge,
-          service supervisor, host door adapters
-          (netprobe/serialscan/netifaces/tcprelay)
+          service supervisor, tmux PTY shell sessions, host door
+          adapters (netprobe/serialscan/netifaces/tcprelay)
 fabric/   single-head cluster service — authenticated membership,
           bounded typed jobs, quorum results, hash-chained journal,
           WebRTC signaling relay
@@ -156,6 +156,8 @@ bun tests/host.test.mjs      # 65 assertions: host adapters, real host
                                    # token/origin checks, .skcs roundtrip
 bun tests/services.test.mjs  # 14 assertions: service manifest,
                                    # supervisor spawn/probe/reap lifecycle
+bun tests/shell.test.mjs      # 18 assertions: real tmux PTY sessions —
+                                   # spawn/write/read/resize/kill lifecycle
 bun tests/fabric.test.mjs    # 56 assertions: auth, bounds, journal
                                    # chain, job lifecycle/quorum, signaling,
                                    # agent execution (wasm SKC + multipart
@@ -202,7 +204,7 @@ relaxes SKYLUM's own capability checks.
 
 `tools/coverage.sh` (or `bun run coverage`) is the honest measurement gate:
 
-- **Bun suites (449 assertions baseline, 461 with Electron live smoke, 0 fail)**
+- **Bun suites (467 assertions baseline, 479 with Electron live smoke, 0 fail)**
   — the JS harnesses are script-style runners with their own `ok()` counters,
   not `bun:test` cases; bun 1.4.5's `--coverage` produces no line data for
   them. JS line coverage is reported as assertion counts, not a fabricated

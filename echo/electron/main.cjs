@@ -19,6 +19,7 @@ const state = {
   window: null,
   handlersInstalled: false,
   fabricProxy: null,
+  term: null,
 };
 const rendererUrl = "skyos://app/echo/electron/renderer.html";
 const skyosRoot = path.resolve(__dirname, "../..");
@@ -51,7 +52,7 @@ function validateVolumeName(name = "state") {
 async function installHandlers() {
   if (state.handlersInstalled) return;
   const [{ loadRuntime }, { createHostApi }, { createNodePersistence }, { startBridge },
-    { nodeHostDoors }, { createSupervisor }] =
+    { nodeHostDoors }, { createSupervisor }, { createShellService }] =
     await Promise.all([
       import("../../host/runtime.js"),
       import("../../host/runtime.js"),
@@ -59,6 +60,7 @@ async function installHandlers() {
       import("../../host/bridge.js"),
       import("../../host/doors-node.js"),
       import("../../host/services-node.mjs"),
+      import("../../host/shell-node.mjs"),
     ]);
   const persistRoot = join(app.getPath("userData"), "volumes");
   const persist = createNodePersistence(persistRoot);
@@ -93,6 +95,10 @@ async function installHandlers() {
       : autoStart.split(",").map(s => s.trim()).filter(Boolean);
     void state.services.ensure(ids).catch(() => {});
   }
+
+  // Real interactive shells: tmux-owned PTYs under userData so every
+  // terminal window gets a genuine login shell on the host.
+  state.term = createShellService({ root: join(app.getPath("userData"), "terms") });
 
   const actions = {
   "skyos:status": () => state.hostApi.status(),
@@ -186,6 +192,13 @@ async function installHandlers() {
   "skyos:services:status": () => state.services.status(),
   "skyos:services:ensure": args =>
     state.services.ensure(args?.id ?? args?.ids ?? "all"),
+  "skyos:term:spawn": args => state.term.spawn(args ?? {}),
+  "skyos:term:write": args => state.term.write(args?.id, args?.data),
+  "skyos:term:read": args => state.term.read(args?.id,
+    args?.maxBytes === undefined ? {} : { maxBytes: args.maxBytes }),
+  "skyos:term:resize": args => state.term.resize(args?.id, args ?? {}),
+  "skyos:term:kill": args => state.term.kill(args?.id),
+  "skyos:term:list": () => state.term.list(),
   // Fabric head access stays in the main process: the renderer supplies
   // only a /v1 path + method + body; SKYOS_FABRIC_URL/TOKEN configure the
   // upstream and the bearer is attached here, never exposed to the page.
@@ -301,6 +314,8 @@ app.on("before-quit", async event => {
       state.bridge = null;
       await state.services?.close().catch(() => {});
       state.services = null;
+      await state.term?.close().catch(() => {});
+      state.term = null;
       app.exit(0);
     }
   }
