@@ -215,6 +215,9 @@ def make_desktop(state_path: Path, out_html: Path, wasm_path: Path | None = None
         if marker in html:
             raise RuntimeError(f"unresolved quine slot: {marker}")
     out_html.write_text(html)
+    digest = hashlib.sha256(out_html.read_bytes()).hexdigest()
+    out_html.with_suffix(out_html.suffix + ".sha256").write_text(
+        f"{digest}  {out_html.name}\n")
     return {"html": str(out_html), "bytes": len(html), "manifest": manifest}
 
 def main() -> int:

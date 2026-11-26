@@ -121,6 +121,9 @@ def make_skylum(state_path: str, out_html: str, *, wasm_path=None,
             .replace("__EXTRA_BOOT__", EXTRA_BOOT)
             .replace("__ENGINE__", engine))
     Path(out_html).write_text(html)
+    import hashlib as _hl
+    _dg = _hl.sha256(Path(out_html).read_bytes()).hexdigest()
+    Path(str(out_html) + ".sha256").write_text(f"{_dg}  {Path(out_html).name}\n")
     return {"html": out_html, "bytes": len(html), "manifest": manifest}
 
 

@@ -40,7 +40,9 @@ python3 skylum/make_skylum.py skylum/seed.skcs -o skylum/skylum.html
 python3 echo/make_desktop.py -o echo/desktop.html
 # 3. Serve from the repository root:
 python3 -m http.server 8931
-# 4. Open /echo/index.html (shell), /iteron/iteron.html,
+# 4. Open /boot.html (verified seed console) or /recovery.html
+#    (artifact recovery lanes), then /echo/index.html (shell),
+#    /iteron/iteron.html,
 #    /skylum/skylum.html, or /echo/desktop.html (quine)
 ```
 
