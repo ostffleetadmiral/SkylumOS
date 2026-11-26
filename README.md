@@ -64,6 +64,12 @@ bun host/cli.js --mode services-up   # spawns missing runtimes, leaves them runn
 cd echo/electron
 bun install
 bun run start
+
+# …or on a machine with a graphical login, from anywhere (adopts the
+# active session's display env — works over SSH):
+SKYOS_FABRIC_URL=http://192.168.12.210:8977 \
+SKYOS_FABRIC_TOKEN="$(cat ~/skyos-fabric/token)" \
+  ./skyos-desktop.sh
 ```
 
 The bridge accepts only fixed service commands, binds to `127.0.0.1` by
