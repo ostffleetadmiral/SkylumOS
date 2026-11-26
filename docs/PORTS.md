@@ -10,9 +10,9 @@ unless a runtime documents a deliberate LAN opt-in.
 | 3000  | Skylum web desktop (Next dev)    | SkylumOS repository root               | `bun run dev`                                                       |
 | 3100  | Space Agent runtime              | `foundations/space-agent`              | `bun space serve PORT=3100 SINGLE_USER_APP=true`                    |
 | 3200  | God's Eye View                   | `foundations/gods-eye-view`            | `python3 -m http.server 3200 -d dist` (static, keyless layers) or `PORT=3200 bun run dev` (full API-brokering server) |
-| 8931  | SkyOS quine artifacts (dev)      | `skyos/`                               | `python3 -m http.server 8931` from the repository root                |
-| 8977  | Skyloom Fabric head (HTTP/WS)    | `skyos/fabric/`                        | `FABRIC_HOST=127.0.0.1 FABRIC_PORT=8977 bun skyos/fabric/server.mjs` (LAN opt-in: `FABRIC_HOST=0.0.0.0`; see `docs/FABRIC.md`) |
-| 19000–20999 | Electron CDP debug (tests) | `skyos/tests`                          | allocated per-run by the electron test harness                       |
+| 8931  | SkyOS quine artifacts (dev)      | repository root                        | `python3 -m http.server 8931` from the repository root                |
+| 8977  | Skyloom Fabric head (HTTP/WS)    | `fabric/`                              | `FABRIC_HOST=127.0.0.1 FABRIC_PORT=8977 bun fabric/server.mjs` (LAN opt-in: `FABRIC_HOST=0.0.0.0`; see `docs/FABRIC.md`) |
+| 19000–20999 | Electron CDP debug (tests) | `tests/`                               | allocated per-run by the electron test harness                       |
 
 ## Rules
 
@@ -37,6 +37,11 @@ unless a runtime documents a deliberate LAN opt-in.
   until `.env` tokens are set (see `foundations/gods-eye-view/.env.example`).
 - `skyos://` CSP permits `frame-src http://127.0.0.1:* http://localhost:*`
   — loopback embeds only, no remote framing.
+- The Fabric head on 8977 is LAN-reachable only under deliberate
+  `FABRIC_HOST=0.0.0.0` opt-in. Electron desktops on other machines reach
+  it through the main-process `skyos:fabric:request` proxy
+  (`SKYOS_FABRIC_URL`/`SKYOS_FABRIC_TOKEN`); browsers keep the read-only
+  `NEXT_PUBLIC_FABRIC_URL` posture — see `docs/FABRIC.md`.
 
 ## Auto-start / machine seeding
 

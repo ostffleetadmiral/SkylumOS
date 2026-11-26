@@ -30,7 +30,25 @@ export function mountFabric(root, ctx) {
   submit.type = "button";
   submit.textContent = "Submit job";
   const feedback = doc.createElement("pre");
-  const client = createFabricClient();
+  // Under the Electron host the real head URL + bearer live in the main
+  // process (SKYOS_FABRIC_URL / SKYOS_FABRIC_TOKEN); fabricRequest proxies
+  // /v1 calls over IPC so the token never enters renderer JS. The
+  // placeholder token only satisfies the client's local credential gate —
+  // the proxy replaces it with the configured bearer upstream.
+  const fabricHost = ctx.os?.host?.fabricRequest;
+  const client = createFabricClient(typeof fabricHost === "function" ? {
+    token: "electron-host",
+    fetchImpl: async (url, options = {}) => {
+      const target = new URL(url);
+      const result = await fabricHost({
+        path: `${target.pathname}${target.search}`,
+        method: options.method || "GET",
+        body: typeof options.body === "string" ? options.body : null,
+      });
+      return new Response(result.body, { status: result.status,
+        headers: { "content-type": "application/json" } });
+    },
+  } : {});
 
   const update = async () => {
     const own = ++generation;

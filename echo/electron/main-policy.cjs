@@ -6,6 +6,7 @@ const IPC_CHANNELS = Object.freeze([
   "skyos:artifact:export", "skyos:bridge:enable", "skyos:bridge:status",
   "skyos:hw:probe", "skyos:optical:sources",
   "skyos:services:status", "skyos:services:ensure",
+  "skyos:fabric:request",
 ]);
 
 function validateSender(event, expectedWebContents, rendererUrl) {

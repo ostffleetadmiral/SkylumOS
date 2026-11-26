@@ -2,6 +2,7 @@ import { createWindowState, transitionWindowState, windowStateSnapshot, restoreW
 import { createTerminalDispatcher } from "../echo/term.js";
 import { APP_REGISTRY, CAPABILITIES, validateAppRegistry } from "../echo/apps.mjs";
 import { EMBED_TARGETS, mountGodseye, mountSpaceagent } from "../echo/apps/embed.js";
+import { mountFabric } from "../echo/apps/fabric.js";
 import { VSpace } from "../skylum/memory.js";
 import { Skylum } from "../skylum/index.js";
 import { spawnSync } from "node:child_process";
@@ -224,6 +225,41 @@ console.log("Embed host-status panel:");
   check(panel2.children.find(c => c.tag === "button")?.disabled === true,
     "start button disables while the supervisor is starting");
   globalThis.fetch = realFetch2;
+}
+
+console.log("Fabric app host proxy:");
+{
+  const el = () => ({ tag: "", className: "", children: [], textContent: "",
+    disabled: false, onclick: null,
+    append(...n) { this.children.push(...n); }, replaceChildren() { this.children = []; },
+    setAttribute() {} });
+  const doc = { createElement: t => { const e = el(); e.tag = t; return e; } };
+  const calls = [];
+  const host = {
+    fabricRequest: async args => {
+      calls.push(args);
+      const body = args.path.startsWith("/v1/status")
+        ? { head: { id: "proxy-head" } }
+        : args.path.startsWith("/v1/nodes") ? { nodes: [{}, {}] }
+        : args.path.startsWith("/v1/jobs") ? { jobs: [] }
+        : { verification: { valid: true }, entries: [] };
+      return { status: 200, body: JSON.stringify(body) };
+    },
+  };
+  const realFetch3 = globalThis.fetch;
+  globalThis.fetch = async () => { throw new Error("direct_fetch_must_not_run"); };
+  const root = el(); root.ownerDocument = doc;
+  const cleanup = mountFabric(root, { isCurrent: () => true, os: { host } });
+  for (let i = 0; i < 8; i++) await new Promise(r => setTimeout(r, 0));
+  check(calls.length === 4 && calls.every(c => c.method === "GET" &&
+    c.path.startsWith("/v1/")),
+    "fabric app reads status/nodes/jobs/journal through the host proxy");
+  const statusLine = root.children[1];
+  check(statusLine.textContent.includes("proxy-head") &&
+    statusLine.textContent.includes("journal verified"),
+    "fabric status line renders the proxied head identity");
+  cleanup();
+  globalThis.fetch = realFetch3;
 }
 
 console.log("Terminal and SKYLUM:");

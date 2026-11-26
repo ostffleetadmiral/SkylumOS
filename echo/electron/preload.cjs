@@ -23,6 +23,7 @@ const CHANNELS = Object.freeze({
   opticalSources: "skyos:optical:sources",
   servicesStatus: "skyos:services:status",
   ensureServices: "skyos:services:ensure",
+  fabricRequest: "skyos:fabric:request",
 });
 
 const api = Object.freeze(Object.fromEntries([

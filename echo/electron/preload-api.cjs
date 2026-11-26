@@ -19,6 +19,7 @@ const CHANNELS = Object.freeze({
   opticalSources: "skyos:optical:sources",
   servicesStatus: "skyos:services:status",
   ensureServices: "skyos:services:ensure",
+  fabricRequest: "skyos:fabric:request",
 });
 
 function createPreloadApi(invoke) {

@@ -1,5 +1,6 @@
 import { strict as assert } from "node:assert";
 import { spawn, spawnSync } from "node:child_process";
+import { createServer } from "node:http";
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -54,6 +55,73 @@ check(/persist:\s*hostPersist/.test(rendererSrc) &&
   /saveVolume:\s*async \(name, bytes\)/.test(rendererSrc),
   "renderer injects host persistence adapter into shared runtime");
 check(/skylum\.status\(\)/.test(rendererSrc), "desktop status reads renderer runtime, not IPC");
+check(/skyos:fabric:request/.test(mainSrc) && /SKYOS_FABRIC_URL/.test(mainSrc) &&
+  /SKYOS_FABRIC_TOKEN/.test(mainSrc),
+  "main proxies fabric head calls with env-configured URL and token");
+
+console.log("Fabric head proxy:");
+{
+  const { createFabricProxy } = require("../echo/electron/fabric-proxy.cjs");
+  const seen = [];
+  const server = createServer((req, res) => {
+    let body = "";
+    req.on("data", chunk => { body += chunk; });
+    req.on("end", () => {
+      seen.push({ method: req.method, url: req.url,
+        auth: req.headers.authorization, ctype: req.headers["content-type"], body });
+      res.writeHead(req.url.startsWith("/v1/job") ? 201 : 200,
+        { "content-type": "application/json" });
+      res.end(req.url.startsWith("/v1/big")
+        ? JSON.stringify({ pad: "x".repeat(2 * 1024 * 1024) })
+        : JSON.stringify({ ok: true, url: req.url }));
+    });
+  });
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const port = server.address().port;
+    const proxy = createFabricProxy({ baseUrl: `http://127.0.0.1:${port}`,
+      token: "test-token-0123456789abcdef" });
+    const anon = createFabricProxy({ baseUrl: `http://127.0.0.1:${port}` });
+    const rejects = async (promise, pattern) => {
+      try { await promise; return false; }
+      catch (error) { return pattern.test(String(error.message)); }
+    };
+
+    const status = await proxy({ path: "/v1/status" });
+    check(status.status === 200 && JSON.parse(status.body).ok === true,
+      "proxy returns upstream status and JSON body");
+    check(seen.at(-1).method === "GET" && seen.at(-1).url === "/v1/status" &&
+      seen.at(-1).auth === "Bearer test-token-0123456789abcdef",
+      "proxy attaches configured bearer to upstream GET");
+    await anon({ path: "/v1/status" });
+    check(seen.at(-1).auth === undefined,
+      "tokenless proxy sends no authorization header");
+    const job = await proxy({ path: "/v1/job?x=1", method: "POST",
+      body: JSON.stringify({ kind: "probe" }) });
+    check(job.status === 201 && seen.at(-1).ctype === "application/json" &&
+      seen.at(-1).url === "/v1/job?x=1" &&
+      JSON.parse(seen.at(-1).body).kind === "probe",
+      "proxy forwards POST path, query, content-type, and body");
+    check(await rejects(proxy({ path: "/v1/status", method: "PUT" }),
+      /fabric_method_invalid/), "proxy rejects non-GET/POST methods");
+    check(await rejects(proxy({ path: "/etc/passwd" }), /fabric_path_invalid/) &&
+      await rejects(proxy({ path: "/v1/has space" }), /fabric_path_invalid/),
+      "proxy rejects paths outside /v1 and paths with whitespace");
+    check(await rejects(proxy({ path: "/v1/status", body: "{}" }),
+      /fabric_body_invalid/) &&
+      await rejects(proxy({ path: "/v1/job", method: "POST",
+        body: "x".repeat(256 * 1024 + 1) }), /fabric_body_invalid/),
+      "proxy rejects GET bodies and oversized request bodies");
+    check(await rejects(proxy({ path: "/v1/big" }), /fabric_response_too_large/),
+      "proxy caps upstream response size");
+    assert.throws(() => createFabricProxy({ baseUrl: "http://u:p@127.0.0.1:1" }),
+      /fabric_url_invalid/);
+    passed++;
+    console.log(" ok proxy rejects credential-bearing upstream URLs");
+  } finally {
+    server.close();
+  }
+}
 
 const electronBin = new URL("../echo/electron/node_modules/electron/dist/electron",
   import.meta.url).pathname;

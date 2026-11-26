@@ -4,6 +4,7 @@ const { mkdir, open, readFile, rename, rm } = require("node:fs/promises");
 const path = require("node:path");
 const { join } = path;
 const { registerHostHandlers } = require("./main-policy.cjs");
+const { createFabricProxy } = require("./fabric-proxy.cjs");
 
 protocol.registerSchemesAsPrivileged([
   { scheme: "skyos", privileges: { standard: true, secure: true, supportFetchAPI: true,
@@ -17,6 +18,7 @@ const state = {
   token: randomBytes(32).toString("hex"),
   window: null,
   handlersInstalled: false,
+  fabricProxy: null,
 };
 const rendererUrl = "skyos://app/echo/electron/renderer.html";
 const skyosRoot = path.resolve(__dirname, "../..");
@@ -184,6 +186,16 @@ async function installHandlers() {
   "skyos:services:status": () => state.services.status(),
   "skyos:services:ensure": args =>
     state.services.ensure(args?.id ?? args?.ids ?? "all"),
+  // Fabric head access stays in the main process: the renderer supplies
+  // only a /v1 path + method + body; SKYOS_FABRIC_URL/TOKEN configure the
+  // upstream and the bearer is attached here, never exposed to the page.
+  "skyos:fabric:request": async args => {
+    state.fabricProxy ??= createFabricProxy({
+      baseUrl: process.env.SKYOS_FABRIC_URL || "http://127.0.0.1:8977",
+      token: process.env.SKYOS_FABRIC_TOKEN || "",
+    });
+    return state.fabricProxy(args);
+  },
   "skyos:hw:probe": async () => {
     const probe = await state.hostApi.hwProbe();
     try {

@@ -30,7 +30,7 @@ umask 077
 mkdir -p .skyos
 openssl rand -hex 32 > .skyos/fabric.token
 chmod 600 .skyos/fabric.token
-FABRIC_HOST=0.0.0.0 FABRIC_PORT=8977 bun skyos/fabric/server.mjs
+FABRIC_HOST=0.0.0.0 FABRIC_PORT=8977 bun fabric/server.mjs
 ```
 
 The default bind is `127.0.0.1`. `0.0.0.0` or `::` is an explicit operator
@@ -48,7 +48,7 @@ Example worker start:
 
 ```sh
 FABRIC_TOKEN="$(cat /secure/path/fabric.token)" \
-  node skyos/fabric/agent.mjs \
+  node fabric/agent.mjs \
   --node ostf-digit --head http://192.168.12.210:8977
 ```
 
@@ -75,6 +75,8 @@ Environment:
 | `FABRIC_AGENT_PORT` | `0` | Port advertised in node endpoint records; `0` advertises no service port (the agent does not open a listener) |
 | `SKYOS_CLAIMS_DIR` | `<cwd>/.skyos/claims` | Root for bounded `claim.read` |
 | `WHISPER_URL` | `http://127.0.0.1:8080/inference` | Worker-local Whisper transcription endpoint (multipart WAV POST) |
+| `SKYOS_FABRIC_URL` | `http://127.0.0.1:8977` | Electron main-process upstream for the desktop Fabric app |
+| `SKYOS_FABRIC_TOKEN` | unset | Bearer attached by the Electron proxy; never enters renderer JS |
 
 ## HTTP and WebSocket protocol
 
@@ -160,10 +162,23 @@ operators need durable audit evidence.
 The ECHO Fabric app reads status, nodes, jobs, and journal through the
 SKYLUM Fabric client. It displays offline/error states and supports only the
 four bounded job kinds. Browser clients cannot hold a shared head token safely;
-do not inject the cluster token into public Next build variables. Use the
-desktop app for read-only monitoring or a separately authenticated operator
-gateway for job submission. Direct tokenized browser mutation is inappropriate
-for a static export.
+do not inject the cluster token into public Next build variables. Static
+exports keep read-only monitoring against `NEXT_PUBLIC_FABRIC_URL` only when
+that endpoint is intentionally public.
+
+Electron desktops are different: the renderer never sees the head URL or
+token. `echo/electron/main.cjs` exposes `skyos:fabric:request`, a fixed IPC
+channel that proxies `/v1/*` calls through `echo/electron/fabric-proxy.cjs`.
+The proxy only forwards `GET`/`POST` to paths under `/v1/`, caps request and
+response sizes, enforces a timeout, and attaches
+`Authorization: Bearer $SKYOS_FABRIC_TOKEN` itself — the renderer's own
+headers are discarded, so a page cannot smuggle a different credential or
+reach a non-fabric route. Configure `SKYOS_FABRIC_URL` and
+`SKYOS_FABRIC_TOKEN` in the Electron process environment; the Fabric app
+then monitors and submits jobs against any reachable head (e.g.
+`http://192.168.12.210:8977` for the `sheraton` head) without any CSP or
+bundle change. This is the supported way for a desktop node to join job
+submission; it does not weaken the browser posture.
 
 Next `rewrites()` run only in Next server/dev mode, not a static export. The
 Fabric head must be independently reachable from the browser when direct
@@ -177,13 +192,13 @@ layer ownership.
 From repository root:
 
 ```sh
-bun skyos/tests/fabric.test.mjs
-bun skyos/tests/iteron.test.mjs
-bun skyos/tests/skylum.test.mjs
-bun skyos/tests/echo.test.mjs
-bun skyos/tests/host.test.mjs
-bun skyos/tests/services.test.mjs
-bun skyos/tests/electron.test.mjs
+bun tests/fabric.test.mjs
+bun tests/iteron.test.mjs
+bun tests/skylum.test.mjs
+bun tests/echo.test.mjs
+bun tests/host.test.mjs
+bun tests/services.test.mjs
+bun tests/electron.test.mjs
 ```
 
 Unit tests use loopback/in-process state. For the `sheraton`/`ostf-digit`

@@ -34,15 +34,14 @@ tests/    script-style assertion suites for every layer
 # 1. The tested codec runtime is vendored at vendor/skc-wasm.wasm.
 #    To rebuild, build the separate prototypes/skc/zig target and set
 #    SKYOS_SKC_WASM=/path/to/skc-wasm.wasm.
-# 2. Build quines from a .skcs state volume
-cd skyos
+# 2. Build quines from a .skcs state volume (run from the repository root)
 python3 iteron/make_quine.py skylum/seed.skcs -o iteron/iteron.html
 python3 skylum/make_skylum.py skylum/seed.skcs -o skylum/skylum.html
 python3 echo/make_desktop.py -o echo/desktop.html
-# 3. Serve from the SkylumOS repository root:
-cd .. && python3 -m http.server 8931
-# 4. Open /skyos/echo/index.html (shell), /skyos/iteron/iteron.html,
-#    /skyos/skylum/skylum.html, or /skyos/echo/desktop.html (quine)
+# 3. Serve from the repository root:
+python3 -m http.server 8931
+# 4. Open /echo/index.html (shell), /iteron/iteron.html,
+#    /skylum/skylum.html, or /echo/desktop.html (quine)
 ```
 
 ## Native hosts
@@ -80,7 +79,12 @@ supervises the external runtimes in `host/services.mjs`: it probes each
 manifest port on startup, spawns launchable missing services (default on;
 `SKYOS_AUTOSTART=0` disables), shows live state in embed windows, and reaps
 only its own children on quit — the same contract `cli.js --mode services*`
-exposes for plain-browser seeding (`docs/PORTS.md`).
+exposes for plain-browser seeding (`docs/PORTS.md`). The Fabric app inside
+the desktop reaches the cluster head through a main-process proxy
+(`skyos:fabric:request`): set `SKYOS_FABRIC_URL` (default
+`http://127.0.0.1:8977`) and `SKYOS_FABRIC_TOKEN` at launch and the bearer
+stays in the main process — it is never exposed to renderer JS or the quine
+bundle (`docs/FABRIC.md`).
 
 `skylum/skylum.html` boots ITERON then constructs `window.SKYLUM`
 (VSpace claims, seats, doors, inference door, WebRTC mesh, Fabric client,
@@ -121,11 +125,11 @@ payload/time/result bounds. Full protocol, limits, and deployment notes:
 ## Verify
 
 ```bash
-cd ..   # repository root
-bun skyos/tests/iteron.test.mjs    # 38 assertions: wasm ABI, .skcs
+# from the repository root
+bun tests/iteron.test.mjs    # 38 assertions: wasm ABI, .skcs
                                    # roundtrip, SKCF parse, ZIP writer,
                                    # sniff, reemit byte-identity
-bun skyos/tests/skylum.test.mjs    # 174 assertions: VSpace claims, codec
+bun tests/skylum.test.mjs    # 174 assertions: VSpace claims, codec
                                    # asymmetry, staging, seats, inference
                                    # e2e (openai + llamacpp + whisper real
                                    # HTTP; wllama honest-unavailable), mesh
@@ -133,32 +137,34 @@ bun skyos/tests/skylum.test.mjs    # 174 assertions: VSpace claims, codec
                                    # roundtrips, astro ephemeris invariants,
                                    # AFSK modem roundtrips, persist honesty,
                                    # facade, bundle eval
-bun skyos/tests/echo.test.mjs      # 70 assertions: reducer geometry,
+bun tests/echo.test.mjs      # 72 assertions: reducer geometry,
                                    # lifecycle, terminal (incl. doors list/recv),
-                                   # embed host-status panel, artifact/browser
-                                   # boot, vendor safety and byte identity
-bun skyos/tests/host.test.mjs      # 65 assertions: host adapters, real host
+                                   # embed host-status panel, fabric host-proxy
+                                   # wiring, artifact/browser boot, vendor
+                                   # safety and byte identity
+bun tests/host.test.mjs      # 65 assertions: host adapters, real host
                                    # doors (TCP probe verdicts, iface/serial
                                    # inventories, tcprelay echo roundtrip),
                                    # hw.probe sysfs inventory,
                                    # IPC policy, bridge bounds,
                                    # token/origin checks, .skcs roundtrip
-bun skyos/tests/services.test.mjs  # 14 assertions: service manifest,
+bun tests/services.test.mjs  # 14 assertions: service manifest,
                                    # supervisor spawn/probe/reap lifecycle
-bun skyos/tests/fabric.test.mjs    # 56 assertions: auth, bounds, journal
+bun tests/fabric.test.mjs    # 56 assertions: auth, bounds, journal
                                    # chain, job lifecycle/quorum, signaling,
                                    # agent execution (wasm SKC + multipart
                                    # Whisper) and browser client
-bun skyos/tests/electron.test.mjs  # 20 assertions static, 32 with smoke:
-                                   # Electron security policy + live boot smoke
+bun tests/electron.test.mjs  # 30 assertions static, 42 with smoke:
+                                   # Electron security policy, fabric head
+                                   # proxy loopback tests + live boot smoke
                                    # (CDP smoke runs when electron + xvfb-run
                                    # are available: boot, persistence, hw.probe,
                                    # and an optical screenshot→decode round trip;
                                    # static checks always run)
-SKYOS_SKC_DIR=/path/to/prototypes/skc skyos/tools/coverage.sh
+SKYOS_SKC_DIR=/path/to/prototypes/skc tools/coverage.sh
 ```
 
-`cd skyos && bun run test` runs the same seven suites through `package.json`.
+`bun run test` runs the same seven suites through `package.json`.
 
 ## Honest boundaries (docs/LAYERS.md §6–7, docs/FABRIC.md)
 
@@ -190,7 +196,7 @@ relaxes SKYLUM's own capability checks.
 
 `tools/coverage.sh` (or `bun run coverage`) is the honest measurement gate:
 
-- **Bun suites (437 assertions baseline, 449 with Electron live smoke, 0 fail)**
+- **Bun suites (449 assertions baseline, 461 with Electron live smoke, 0 fail)**
   — the JS harnesses are script-style runners with their own `ok()` counters,
   not `bun:test` cases; bun 1.4.5's `--coverage` produces no line data for
   them. JS line coverage is reported as assertion counts, not a fabricated
